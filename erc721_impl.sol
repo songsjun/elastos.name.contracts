@@ -305,10 +305,14 @@ contract ERC721 is ERC165, IERC721 {
     address indexed sender,
     uint256 value
   );
+  
   event PaymentLog(
       string uri,
       uint256 hash
   );
+  
+  // address owned erc721 tokens
+  mapping (address => uint256[]) public addressOwnedTokenIds;
   
   /*
    * 0x80ac58cd ===
@@ -415,7 +419,7 @@ contract ERC721 is ERC165, IERC721 {
    * @param from current owner of the token
    * @param to address to receive the ownership of the given token ID
    * @param tokenId uint256 ID of the token to be transferred
-   */
+  */
   function transferFrom(
     address from,
     address to,
@@ -431,31 +435,6 @@ contract ERC721 is ERC165, IERC721 {
     _addTokenTo(to, tokenId);
 
     emit Transfer(from, to, tokenId);
-  }
-  
-  /**
-   * @dev Transfers the ownership of a given token ID to another address
-   * Usage of this method is discouraged, use `safeTransferFrom` whenever possible
-   * Requires the msg sender to be the owner, approved, or operator
-   * @param from current owner of the token
-   * @param to address to receive the ownership of the given token ID
-   * @param tokenId uint256 ID of the token to be transferred
-   */
-  function transferFromDelegateCall(
-    address from,
-    address to,
-    uint256 tokenId
-  )
-    public
-  {
-    // require(_isApprovedOrOwner(msg.sender, tokenId));
-    // require(to != address(0));
-
-    // _clearApproval(from, tokenId);
-    // _removeTokenFrom(from, tokenId);
-    // _addTokenTo(to, tokenId);
-
-    // emit Transfer(from, to, tokenId);
     
   }
 
@@ -801,14 +780,14 @@ contract ERC721Metadata is ERC165, ERC721, IERC721Metadata {
 
   /**
    * @dev Constructor function
-   */
-//   constructor(string name, string symbol) public {
-//     _name = name;
-//     _symbol = symbol;
+   
+  constructor(string name, string symbol) public {
+    _name = name;
+    _symbol = symbol;
 
-//     // register the supported interfaces to conform to ERC721 via ERC165
-//     _registerInterface(InterfaceId_ERC721Metadata);
-//   }
+    // register the supported interfaces to conform to ERC721 via ERC165
+    _registerInterface(InterfaceId_ERC721Metadata);
+  }*/
 
   /**
    * @dev Gets the token name
@@ -927,13 +906,21 @@ contract Ownable
 
 }
 
+contract CryptoNamePrices {
+    
+  uint256 public price_level1 = 10000000000000000000;  
+  uint256 public price_level2 = 1000000000000000000;
+  uint256 public price_level3 = 100000000000000000;
+  
+}
+
 /**
- * @title Full ERC721 Token
+ * @title CryptoNameImpl ERC721 Token
  * This implementation includes all the required and some optional functionality of the ERC721 standard
  * Moreover, it includes approve all functionality using operator terminology
  * @dev see https://github.com/ethereum/EIPs/blob/master/EIPS/eip-721.md
  */
-contract ERC721Full is ERC721, ERC721Enumerable, ERC721Metadata,Ownable {
+contract CryptoNameImpl is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, CryptoNamePrices {
 //   constructor(string name, string symbol) ERC721Metadata(name, symbol)
 //     public
 //   {
@@ -995,29 +982,42 @@ contract ERC721Full is ERC721, ERC721Enumerable, ERC721Metadata,Ownable {
    * @dev paymentDelegateCall
    */ 
   function externalMintDelegateCall(uint256 _tokenId ,string _uri) payable public{
-    string memory url = "elastos.name";
-    bytes memory whatBytes = bytes (url);
-    bytes memory whereBytes = bytes (_uri);
-
-    bool found = true;
-    for (uint i = 0; i < whereBytes.length - whatBytes.length; i++) {
-        if (whatBytes [i] != whereBytes [i + whereBytes.length - whatBytes.length]) {
-            found = false;
+    bytes memory nameBytes = bytes (_uri);
+    
+    bool found = false;
+    for (uint i = 0; i < nameBytes.length; i++) {
+        if ( !(nameBytes[i]>='0' && nameBytes[i]<='9') && !(nameBytes[i]>='a' && nameBytes[i]<='z') ) {
+            found = true;
             break;
         }
     }
-    require(whereBytes.length <= 30);
-    require (found);
-    uint256 len = whereBytes.length - whatBytes.length - 1;
-    require(len >= 3);
-    if (len == 3){
-        require(msg.value >= 1 ether);
+    
+    require(nameBytes.length <= 32);
+    require (!found);
+ 
+    uint256 currentPrice = 0;
+    emit PaymentLog("nameBytes.length",nameBytes.length);
+    if (nameBytes.length < 3) {
+        require(false, "1 or 2 letter names are reserved.");
     }
-    if (len >= 4){
-        require(msg.value >= 0.1 ether);
+    else if (nameBytes.length == 3) {
+        require(msg.value >= price_level2, "The value is not enough.");
+        currentPrice = price_level2;
+        price_level2 = price_level2 + 10000000000000000;
+    }
+    else {
+        emit PaymentLog("price_level3", price_level3);
+        require(msg.value >= price_level3, "The value is not enough.");
+        currentPrice = price_level3;
+        price_level3 = price_level3 + 1000000000000000;
+        emit PaymentReceived(msg.sender, msg.value);
+        emit PaymentReceived(msg.sender, price_level3);
     }
     emit PaymentLog(_uri,_tokenId);
+    emit PaymentReceived(msg.sender, currentPrice);
+    
+    if (msg.value > currentPrice)
+        msg.sender.transfer(msg.value - currentPrice);
   }
   
 }
-

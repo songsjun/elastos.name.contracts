@@ -427,7 +427,7 @@ contract ERC721 is ERC165, IERC721 {
   )
     public
   {
-    bool result = implementation_slot.delegatecall(abi.encodeWithSignature("transferFromDelegateCall(address,address,uint256)",from,to,tokenId));
+    bool result = implementation_slot.delegatecall(abi.encodeWithSignature("transferFrom(address,address,uint256)",from,to,tokenId));
     require(result);
   }
 
@@ -899,13 +899,21 @@ contract Ownable
 
 }
 
+contract CryptoNamePrices {
+    
+  uint256 public price_level1 = 10000000000000000000;  
+  uint256 public price_level2 = 1000000000000000000;
+  uint256 public price_level3 = 100000000000000000;
+  
+}
+
 /**
- * @title Full ERC721 Token
+ * @title CryptoName ERC721 Token
  * This implementation includes all the required and some optional functionality of the ERC721 standard
  * Moreover, it includes approve all functionality using operator terminology
  * @dev see https://github.com/ethereum/EIPs/blob/master/EIPS/eip-721.md
  */
-contract ERC721Full is ERC721, ERC721Enumerable, ERC721Metadata,Ownable {
+contract CryptoName is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, CryptoNamePrices {
   constructor(string name, string symbol) ERC721Metadata(name, symbol)
     public
   {
@@ -916,27 +924,27 @@ contract ERC721Full is ERC721, ERC721Enumerable, ERC721Metadata,Ownable {
   /**
    * @dev Mints a new NFT.
    * @param _to The address that will own the minted NFT.
-   * @param _tokenId of the NFT to be minted by the msg.sender.
    * @param _uri String representing RFC 3986 URI.
    */
   function mint(
     address _to,
-    uint256 _tokenId,
     string _uri
   )
     external
     onlyOwner
   {
-    super._mint(_to, _tokenId);
-    super._setTokenURI(_tokenId, _uri);
+    uint256 tokenId = uint256(sha256(abi.encodePacked(_uri)));
+    super._mint(_to, tokenId);
+    super._setTokenURI(tokenId, _uri);
   }
 
   // pay to current address
-  function externalMint(uint256 _tokenId ,string _uri) payable public {
-    bool result = implementation_slot.delegatecall(abi.encodeWithSignature("externalMintDelegateCall(uint256,string)",_tokenId,_uri));
+  function externalMint(string _uri) payable public {
+    uint256 tokenId = uint256(sha256(abi.encodePacked(_uri)));
+    bool result = implementation_slot.delegatecall(abi.encodeWithSignature("externalMintDelegateCall(uint256,string)",tokenId,_uri));
     require(result);
-    super._mint(msg.sender,_tokenId);
-    super._setTokenURI(_tokenId,_uri);
+    super._mint(msg.sender,tokenId);
+    super._setTokenURI(tokenId,_uri);
     emit PaymentReceived(msg.sender, msg.value);
   }
   
@@ -971,4 +979,3 @@ contract ERC721Full is ERC721, ERC721Enumerable, ERC721Metadata,Ownable {
   }
   
 }
-
