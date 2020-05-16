@@ -926,6 +926,7 @@ contract CryptoNameImpl is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, Cr
 //   {
 //   }
   
+  
   /**
    * @dev Mints a new NFT.
    * @param _to The address that will own the minted NFT.
@@ -977,11 +978,40 @@ contract CryptoNameImpl is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, Cr
     }
     return 0;
   }
-
- /**
+  
+  /**
+   * @dev transferDelegateCall the ownership of a given token ID to another address
+   * Usage of this method is discouraged, use `safeTransferFrom` whenever possible
+   * Requires the msg sender to be the owner, approved, or operator
+   * @param from current owner of the token
+   * @param to address to receive the ownership of the given token ID
+   * @param uri uint256 ID of the token to be transferred
+  */
+  function transferDelegateCall(
+    address from,
+    address to,
+    string uri
+  )
+    payable
+    public
+  {
+    uint256 tokenId = uint256(sha256(abi.encodePacked(uri)));
+    bytes memory nameBytes = bytes (uri);
+    
+    require(_exists(tokenId), "The token is not exist.");
+    require(msg.sender == ownerOf(tokenId), "You are not the owner.");
+    
+    require((nameBytes.length < 3 && msg.value >= 1 ether) || 
+            (nameBytes.length == 3 && msg.value >= 0.1 ether) || 
+            (nameBytes.length > 3 && msg.value >= 0.1 ether) , "The value is not enough.");
+  }
+  
+  /**
    * @dev paymentDelegateCall
    */ 
   function externalMintDelegateCall(uint256 _tokenId ,string _uri) payable public{
+    require(!_exists(_tokenId), "The token is exist.");
+    
     bytes memory nameBytes = bytes (_uri);
     
     bool found = false;

@@ -427,8 +427,32 @@ contract ERC721 is ERC165, IERC721 {
   )
     public
   {
-    bool result = implementation_slot.delegatecall(abi.encodeWithSignature("transferFrom(address,address,uint256)",from,to,tokenId));
-    require(result);
+      require(false, "Don't support directly transfer.");
+  }
+  
+  /**
+   * @dev _Transfers the ownership of a given token ID to another address
+   * Usage of this method is discouraged, use `safeTransferFrom` whenever possible
+   * Requires the msg sender to be the owner, approved, or operator
+   * @param from current owner of the token
+   * @param to address to receive the ownership of the given token ID
+   * @param tokenId uint256 ID of the token to be transferred
+  */
+  function _transferFrom(
+    address from,
+    address to,
+    uint256 tokenId
+  )
+    internal
+  {
+    require(_isApprovedOrOwner(msg.sender, tokenId));
+    require(to != address(0));
+
+    _clearApproval(from, tokenId);
+    _removeTokenFrom(from, tokenId);
+    _addTokenTo(to, tokenId);
+
+    emit Transfer(from, to, tokenId);
   }
 
   /**
@@ -922,6 +946,28 @@ contract CryptoName is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, Crypto
   event Withdraw(address addr, uint256 amount);
   
   /**
+   * @dev Transfers the ownership of a given token ID to another address
+   * Usage of this method is discouraged, use `safeTransferFrom` whenever possible
+   * Requires the msg sender to be the owner, approved, or operator
+   * @param from current owner of the token
+   * @param to address to receive the ownership of the given token ID
+   * @param uri uint256 ID of the token to be transferred
+  */
+  function transfer(
+    address from,
+    address to,
+    string uri
+  )
+    payable
+    public
+  {
+    uint256 tokenId = uint256(sha256(abi.encodePacked(uri)));
+    bool result = implementation_slot.delegatecall(abi.encodeWithSignature("transferDelegateCall(address,address,string)",from,to,uri));
+    require(result, "Transfer failed.");
+    super._transferFrom(from, to, tokenId);
+  }
+  
+  /**
    * @dev Mints a new NFT.
    * @param _to The address that will own the minted NFT.
    * @param _uri String representing RFC 3986 URI.
@@ -934,6 +980,7 @@ contract CryptoName is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, Crypto
     onlyOwner
   {
     uint256 tokenId = uint256(sha256(abi.encodePacked(_uri)));
+    require(!_exists(tokenId), "The token is exist.");
     super._mint(_to, tokenId);
     super._setTokenURI(tokenId, _uri);
   }
@@ -942,7 +989,7 @@ contract CryptoName is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, Crypto
   function externalMint(string _uri) payable public {
     uint256 tokenId = uint256(sha256(abi.encodePacked(_uri)));
     bool result = implementation_slot.delegatecall(abi.encodeWithSignature("externalMintDelegateCall(uint256,string)",tokenId,_uri));
-    require(result);
+    require(result, "Register failed.");
     super._mint(msg.sender,tokenId);
     super._setTokenURI(tokenId,_uri);
     emit PaymentReceived(msg.sender, msg.value);
