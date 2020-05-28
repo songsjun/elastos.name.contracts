@@ -760,7 +760,8 @@ contract ERC721Enumerable is ERC165, ERC721, IERC721Enumerable {
   }
 }
 
-contract ERC721Metadata is ERC165, ERC721, IERC721Metadata {
+
+contract ERC721Metadata is ERC165, IERC721Metadata {
   // Token name
   string private _name;
 
@@ -769,6 +770,15 @@ contract ERC721Metadata is ERC165, ERC721, IERC721Metadata {
 
   // Optional mapping for token URIs
   mapping(uint256 => string) private _tokenURIs;
+  
+  // Optional mapping for token create times
+  mapping(uint256 => uint) private _tokenCreatetimes;
+  
+  // Optional mapping for token prices
+  mapping(uint256 => uint256) private _tokenPrices;
+  
+  // keywords
+  mapping(uint256 => mapping(string => string) ) private _keywords;
 
   bytes4 private constant InterfaceId_ERC721Metadata = 0x5b5e139f;
   /**
@@ -780,14 +790,14 @@ contract ERC721Metadata is ERC165, ERC721, IERC721Metadata {
 
   /**
    * @dev Constructor function
-   
-  constructor(string name, string symbol) public {
-    _name = name;
-    _symbol = symbol;
+   */
+//   constructor(string name, string symbol) public {
+//     _name = name;
+//     _symbol = symbol;
 
-    // register the supported interfaces to conform to ERC721 via ERC165
-    _registerInterface(InterfaceId_ERC721Metadata);
-  }*/
+//     // register the supported interfaces to conform to ERC721 via ERC165
+//     _registerInterface(InterfaceId_ERC721Metadata);
+//   }
 
   /**
    * @dev Gets the token name
@@ -804,15 +814,35 @@ contract ERC721Metadata is ERC165, ERC721, IERC721Metadata {
   function symbol() external view returns (string) {
     return _symbol;
   }
-
+  
   /**
    * @dev Returns an URI for a given token ID
    * Throws if the token ID does not exist. May return an empty string.
    * @param tokenId uint256 ID of the token to query
    */
   function tokenURI(uint256 tokenId) external view returns (string) {
-    require(_exists(tokenId));
+    //require(_exists(tokenId));
     return _tokenURIs[tokenId];
+  }
+
+  /**
+   * @dev Returns the renewal price for a given token ID
+   * Throws if the token ID does not exist. May return an empty string.
+   * @param tokenId uint256 ID of the token to query
+   */
+  function tokenPrice(uint256 tokenId) external view returns (uint256) {
+    //require(_exists(tokenId));
+    return _tokenPrices[tokenId];
+  }
+
+  /**
+   * @dev Returns the create time for a given token ID
+   * Throws if the token ID does not exist. May return an empty string.
+   * @param tokenId uint256 ID of the token to query
+   */
+  function tokenCreatetime(uint256 tokenId) external view returns (uint) {
+    //require(_exists(tokenId));
+    return _tokenCreatetimes[tokenId];
   }
 
   /**
@@ -820,27 +850,55 @@ contract ERC721Metadata is ERC165, ERC721, IERC721Metadata {
    * Reverts if the token ID does not exist
    * @param tokenId uint256 ID of the token to set its URI
    * @param uri string URI to assign
+   * @param expiration uint 
    */
-  function _setTokenURI(uint256 tokenId, string uri) internal {
-    require(_exists(tokenId));
+  function _setTokenURI(uint256 tokenId, string uri, uint256 renewalPrice, uint expiration) internal {
+    //require(_exists(tokenId));
     _tokenURIs[tokenId] = uri;
+    _tokenPrices[tokenId] = renewalPrice;
+    _tokenCreatetimes[tokenId] = expiration;
   }
 
   /**
    * @dev Internal function to burn a specific token
    * Reverts if the token does not exist
-   * @param owner owner of the token to burn
    * @param tokenId uint256 ID of the token being burned by the msg.sender
    */
-  function _burn(address owner, uint256 tokenId) internal {
-    super._burn(owner, tokenId);
+  function _burn(uint256 tokenId) internal {
+    //super._burn(owner, tokenId);
 
     // Clear metadata (if any)
     if (bytes(_tokenURIs[tokenId]).length != 0) {
       delete _tokenURIs[tokenId];
+      delete _tokenPrices[tokenId];
+      delete _tokenCreatetimes[tokenId];
     }
   }
+  
+  
+  /**
+   * @dev Internal function to set the token external info
+   * Reverts if the token ID does not exist
+   * @param tokenId uint256 ID of the token to set its URI
+   * @param key string keywork of token
+   * @param value string the value of the keyword
+   */
+  function _setKeyword(uint256 tokenId, string key, string value) internal {
+      _keywords[tokenId][key] = value;
+  }
+  
+  /**
+   * @dev Internal function to get the token external info
+   * Reverts if the token ID does not exist
+   * @param tokenId uint256 ID of the token to set its URI
+   * @param key string keywork of token
+   */
+  function _getKeyword(uint256 tokenId, string key) internal view returns (string) {
+      return _keywords[tokenId][key];
+  }
+
 }
+
 
 /**
  * @dev The contract has an owner address, and provides basic authorization control whitch
@@ -906,12 +964,20 @@ contract Ownable
 
 }
 
-contract CryptoNamePrices {
-    
-  uint256 public price_level1 = 10000000000000000000;  
-  uint256 public price_level2 = 1000000000000000000;
-  uint256 public price_level3 = 100000000000000000;
+contract CryptoNameParameters {
+  uint256 public price_level1 =    100000000000000000000; // 100 ether
+  uint256 public renewal_level1 =  10000000000000000000;  // 10 ether
+  uint256 public increase_level1 = 1000000000000000000;   // 1 ether
   
+  uint256 public price_level2 =    10000000000000000000;  // 10 ether
+  uint256 public increase_level2 = 100000000000000000;    // 0.1 ether
+  uint256 public renewal_level2 =  1000000000000000000;   // 1 ether
+  
+  uint256 public price_level3 =    2000000000000000000;   // 2 ether
+  uint256 public renewal_level3 =  100000000000000000;    // 0.1 ether
+  uint256 public increase_level3 = 1000000000000000;      // 0.001 ether 
+  
+  uint public EXPIRATION = 31536000;
 }
 
 /**
@@ -920,7 +986,7 @@ contract CryptoNamePrices {
  * Moreover, it includes approve all functionality using operator terminology
  * @dev see https://github.com/ethereum/EIPs/blob/master/EIPS/eip-721.md
  */
-contract CryptoNameImpl is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, CryptoNamePrices {
+contract CryptoNameImpl is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, CryptoNameParameters {
 //   constructor(string name, string symbol) ERC721Metadata(name, symbol)
 //     public
 //   {
@@ -942,7 +1008,7 @@ contract CryptoNameImpl is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, Cr
     onlyOwner
   {
     super._mint(_to, _tokenId);
-    super._setTokenURI(_tokenId, _uri);
+    super._setTokenURI(_tokenId, _uri, 0.1 ether, block.timestamp);
   }
 
   modifier contains (string memory what, string memory where) {
@@ -1007,6 +1073,57 @@ contract CryptoNameImpl is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, Cr
   }
   
   /**
+   * @dev renewTokenDelegateCall
+   */      
+  function renewDelegateCall(uint256 _tokenId ,string _uri) payable public{
+    require(_exists(_tokenId), "The token is not exist.");
+    
+    bytes memory nameBytes = bytes (_uri);
+    uint256 price = this.tokenPrice(_tokenId);
+    uint lastExpiration = this.tokenCreatetime(_tokenId);
+    uint expiration = msg.value.div(price).mul(EXPIRATION) + lastExpiration;
+    //require(msg.value >= price, "The value is not enough.");
+    
+    if (nameBytes.length < 3) {
+        require(msg.value >= renewal_level1, "The value is not enough.");
+        expiration = msg.value.div(renewal_level1).mul(EXPIRATION) + lastExpiration;
+    }
+    else if (nameBytes.length == 3) {
+        require(msg.value >= renewal_level2, "The value is not enough.");
+        expiration = msg.value.div(renewal_level2).mul(EXPIRATION) + lastExpiration;
+    }
+    else {
+        require(msg.value >= renewal_level3, "The value is not enough.");
+        expiration = msg.value.div(renewal_level3).mul(EXPIRATION) + lastExpiration;
+    }
+    super._setTokenURI(_tokenId, _uri, price, expiration);
+  }
+  
+  
+  
+  /**
+   * @dev recycleTokenDelegateCall
+   */ 
+  function recycleTokenDelegateCall(uint256 _tokenId) public{
+    uint expiration = this.tokenCreatetime(_tokenId).add(EXPIRATION);
+    require(expiration <= block.timestamp);
+    
+    address owner = super.ownerOf(_tokenId);
+    super._burn(owner, _tokenId);
+    super._burn(_tokenId);
+  }
+  
+  
+  /**
+   * @dev paymentDelegateCall
+   */ 
+  function mintDelegateCall(address _to, uint256 _tokenId, string _uri) onlyOwner public{
+    require(!_exists(_tokenId), "The token is exist.");
+    super._mint(_to, _tokenId);
+    super._setTokenURI(_tokenId, _uri, 1 ether, block.timestamp);
+  }
+  
+  /**
    * @dev paymentDelegateCall
    */ 
   function externalMintDelegateCall(uint256 _tokenId ,string _uri) payable public{
@@ -1022,7 +1139,7 @@ contract CryptoNameImpl is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, Cr
         }
     }
     
-    require(nameBytes.length <= 32);
+    require(nameBytes.length <= 32 && !(nameBytes[0]>='0' && nameBytes[0]<='9'));
     require (!found);
  
     uint256 currentPrice = 0;
@@ -1033,21 +1150,22 @@ contract CryptoNameImpl is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, Cr
     else if (nameBytes.length == 3) {
         require(msg.value >= price_level2, "The value is not enough.");
         currentPrice = price_level2;
-        price_level2 = price_level2 + 10000000000000000;
+        price_level2 = price_level2.add(increase_level2);
+        increase_level2 = increase_level2.div(1000000).mul(999875);
     }
     else {
         emit PaymentLog("price_level3", price_level3);
         require(msg.value >= price_level3, "The value is not enough.");
         currentPrice = price_level3;
-        price_level3 = price_level3 + 1000000000000000;
-        emit PaymentReceived(msg.sender, msg.value);
-        emit PaymentReceived(msg.sender, price_level3);
+        price_level3 = price_level3.add(increase_level3);
+        increase_level3 = increase_level3.div(1000000).mul(999875);
     }
-    emit PaymentLog(_uri,_tokenId);
-    emit PaymentReceived(msg.sender, currentPrice);
     
     if (msg.value > currentPrice)
         msg.sender.transfer(msg.value - currentPrice);
+        
+    super._mint(msg.sender, _tokenId);
+    super._setTokenURI(_tokenId, _uri, currentPrice, block.timestamp);
   }
   
 }
