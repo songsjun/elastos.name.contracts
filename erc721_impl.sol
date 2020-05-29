@@ -994,7 +994,7 @@ contract CryptoNameParameters {
   uint256 public renewal_level3 =  100000000000000000;    // 0.1 ether
   uint256 public increase_level3 = 1000000000000000;      // 0.001 ether 
   
-  uint public EXPIRATION = 180;
+  uint public EXPIRATION = 31536000;
 }
 
 /**
