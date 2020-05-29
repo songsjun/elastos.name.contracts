@@ -427,6 +427,24 @@ contract ERC721 is ERC165, IERC721 {
   )
     public
   {
+      require(false, "Don't support directly transfer.");
+  }
+  
+  /**
+   * @dev _Transfers the ownership of a given token ID to another address
+   * Usage of this method is discouraged, use `safeTransferFrom` whenever possible
+   * Requires the msg sender to be the owner, approved, or operator
+   * @param from current owner of the token
+   * @param to address to receive the ownership of the given token ID
+   * @param tokenId uint256 ID of the token to be transferred
+  */
+  function _transferFrom(
+    address from,
+    address to,
+    uint256 tokenId
+  )
+    internal
+  {
     require(_isApprovedOrOwner(msg.sender, tokenId));
     require(to != address(0));
 
@@ -435,7 +453,6 @@ contract ERC721 is ERC165, IERC721 {
     _addTokenTo(to, tokenId);
 
     emit Transfer(from, to, tokenId);
-    
   }
 
   /**
@@ -771,8 +788,8 @@ contract ERC721Metadata is ERC165, IERC721Metadata {
   // Optional mapping for token URIs
   mapping(uint256 => string) private _tokenURIs;
   
-  // Optional mapping for token create times
-  mapping(uint256 => uint) private _tokenCreatetimes;
+  // Optional mapping for token expiration
+  mapping(uint256 => uint) private _tokenExpirations;
   
   // Optional mapping for token prices
   mapping(uint256 => uint256) private _tokenPrices;
@@ -836,13 +853,13 @@ contract ERC721Metadata is ERC165, IERC721Metadata {
   }
 
   /**
-   * @dev Returns the create time for a given token ID
+   * @dev Returns the expiration for a given token ID
    * Throws if the token ID does not exist. May return an empty string.
    * @param tokenId uint256 ID of the token to query
    */
-  function tokenCreatetime(uint256 tokenId) external view returns (uint) {
+  function tokenExpiration(uint256 tokenId) external view returns (uint) {
     //require(_exists(tokenId));
-    return _tokenCreatetimes[tokenId];
+    return _tokenExpirations[tokenId];
   }
 
   /**
@@ -856,7 +873,7 @@ contract ERC721Metadata is ERC165, IERC721Metadata {
     //require(_exists(tokenId));
     _tokenURIs[tokenId] = uri;
     _tokenPrices[tokenId] = renewalPrice;
-    _tokenCreatetimes[tokenId] = expiration;
+    _tokenExpirations[tokenId] = expiration;
   }
 
   /**
@@ -871,7 +888,7 @@ contract ERC721Metadata is ERC165, IERC721Metadata {
     if (bytes(_tokenURIs[tokenId]).length != 0) {
       delete _tokenURIs[tokenId];
       delete _tokenPrices[tokenId];
-      delete _tokenCreatetimes[tokenId];
+      delete _tokenExpirations[tokenId];
     }
   }
   
@@ -970,14 +987,14 @@ contract CryptoNameParameters {
   uint256 public increase_level1 = 1000000000000000000;   // 1 ether
   
   uint256 public price_level2 =    10000000000000000000;  // 10 ether
-  uint256 public increase_level2 = 100000000000000000;    // 0.1 ether
   uint256 public renewal_level2 =  1000000000000000000;   // 1 ether
+  uint256 public increase_level2 = 100000000000000000;    // 0.1 ether
   
   uint256 public price_level3 =    2000000000000000000;   // 2 ether
   uint256 public renewal_level3 =  100000000000000000;    // 0.1 ether
   uint256 public increase_level3 = 1000000000000000;      // 0.001 ether 
   
-  uint public EXPIRATION = 31536000;
+  uint public EXPIRATION = 180;
 }
 
 /**
@@ -1008,7 +1025,7 @@ contract CryptoNameImpl is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, Cr
     onlyOwner
   {
     super._mint(_to, _tokenId);
-    super._setTokenURI(_tokenId, _uri, 0.1 ether, block.timestamp);
+    super._setTokenURI(_tokenId, _uri, 0.1 ether, block.timestamp + EXPIRATION);
   }
 
   modifier contains (string memory what, string memory where) {
@@ -1063,13 +1080,16 @@ contract CryptoNameImpl is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, Cr
   {
     uint256 tokenId = uint256(sha256(abi.encodePacked(uri)));
     bytes memory nameBytes = bytes (uri);
+    uint expiration = this.tokenExpiration(tokenId);
     
     require(_exists(tokenId), "The token is not exist.");
     require(msg.sender == ownerOf(tokenId), "You are not the owner.");
+    require(expiration > block.timestamp, "The token is expired.");
     
     require((nameBytes.length < 3 && msg.value >= 1 ether) || 
             (nameBytes.length == 3 && msg.value >= 0.1 ether) || 
             (nameBytes.length > 3 && msg.value >= 0.1 ether) , "The value is not enough.");
+    super._transferFrom(from, to, tokenId);
   }
   
   /**
@@ -1080,7 +1100,7 @@ contract CryptoNameImpl is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, Cr
     
     bytes memory nameBytes = bytes (_uri);
     uint256 price = this.tokenPrice(_tokenId);
-    uint lastExpiration = this.tokenCreatetime(_tokenId);
+    uint lastExpiration = this.tokenExpiration(_tokenId);
     uint expiration = msg.value.div(price).mul(EXPIRATION) + lastExpiration;
     //require(msg.value >= price, "The value is not enough.");
     
@@ -1105,7 +1125,7 @@ contract CryptoNameImpl is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, Cr
    * @dev recycleTokenDelegateCall
    */ 
   function recycleTokenDelegateCall(uint256 _tokenId) public{
-    uint expiration = this.tokenCreatetime(_tokenId).add(EXPIRATION);
+    uint expiration = this.tokenExpiration(_tokenId);
     require(expiration <= block.timestamp);
     
     address owner = super.ownerOf(_tokenId);
@@ -1120,7 +1140,7 @@ contract CryptoNameImpl is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, Cr
   function mintDelegateCall(address _to, uint256 _tokenId, string _uri) onlyOwner public{
     require(!_exists(_tokenId), "The token is exist.");
     super._mint(_to, _tokenId);
-    super._setTokenURI(_tokenId, _uri, 1 ether, block.timestamp);
+    super._setTokenURI(_tokenId, _uri, 1 ether, block.timestamp + EXPIRATION);
   }
   
   /**
@@ -1165,7 +1185,25 @@ contract CryptoNameImpl is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, Cr
         msg.sender.transfer(msg.value - currentPrice);
         
     super._mint(msg.sender, _tokenId);
-    super._setTokenURI(_tokenId, _uri, currentPrice, block.timestamp);
+    super._setTokenURI(_tokenId, _uri, currentPrice, block.timestamp + EXPIRATION);
   }
   
+  function setKeywordDelegateCall (string _uri, string _key, string _value) public {
+      uint256 tokenId = uint256(sha256(abi.encodePacked(_uri)));
+      uint expiration = this.tokenExpiration(tokenId);
+      
+      require(_exists(tokenId), "The token is not exist.");
+      require(msg.sender == ownerOf(tokenId), "You are not the owner.");
+      require(expiration > block.timestamp, "The token is expired.");
+    
+      super._setKeyword(tokenId, _key, _value);
+  }
+  
+  function getKeywordDelegateCall (string _uri, string _key) public {
+      uint256 tokenId = uint256(sha256(abi.encodePacked(_uri)));
+      uint expiration = this.tokenExpiration(tokenId);
+      
+      require(_exists(tokenId), "The token is not exist.");
+      require(expiration > block.timestamp, "The token is expired.");
+  }
 }

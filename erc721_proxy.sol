@@ -787,8 +787,8 @@ contract ERC721Metadata is ERC165, IERC721Metadata {
   // Optional mapping for token URIs
   mapping(uint256 => string) private _tokenURIs;
   
-  // Optional mapping for token create times
-  mapping(uint256 => uint) private _tokenCreatetimes;
+  // Optional mapping for token expiration
+  mapping(uint256 => uint) private _tokenExpirations;
   
   // Optional mapping for token prices
   mapping(uint256 => uint256) private _tokenPrices;
@@ -852,13 +852,13 @@ contract ERC721Metadata is ERC165, IERC721Metadata {
   }
 
   /**
-   * @dev Returns the create time for a given token ID
+   * @dev Returns the expiration for a given token ID
    * Throws if the token ID does not exist. May return an empty string.
    * @param tokenId uint256 ID of the token to query
    */
-  function tokenCreatetime(uint256 tokenId) external view returns (uint) {
+  function tokenExpiration(uint256 tokenId) external view returns (uint) {
     //require(_exists(tokenId));
-    return _tokenCreatetimes[tokenId];
+    return _tokenExpirations[tokenId];
   }
 
   /**
@@ -872,7 +872,7 @@ contract ERC721Metadata is ERC165, IERC721Metadata {
     //require(_exists(tokenId));
     _tokenURIs[tokenId] = uri;
     _tokenPrices[tokenId] = renewalPrice;
-    _tokenCreatetimes[tokenId] = expiration;
+    _tokenExpirations[tokenId] = expiration;
   }
 
   /**
@@ -887,7 +887,7 @@ contract ERC721Metadata is ERC165, IERC721Metadata {
     if (bytes(_tokenURIs[tokenId]).length != 0) {
       delete _tokenURIs[tokenId];
       delete _tokenPrices[tokenId];
-      delete _tokenCreatetimes[tokenId];
+      delete _tokenExpirations[tokenId];
     }
   }
   
@@ -985,14 +985,14 @@ contract CryptoNameParameters {
   uint256 public increase_level1 = 1000000000000000000;   // 1 ether
   
   uint256 public price_level2 =    10000000000000000000;  // 10 ether
-  uint256 public increase_level2 = 100000000000000000;    // 0.1 ether
   uint256 public renewal_level2 =  1000000000000000000;   // 1 ether
+  uint256 public increase_level2 = 100000000000000000;    // 0.1 ether
   
   uint256 public price_level3 =    2000000000000000000;   // 2 ether
   uint256 public renewal_level3 =  100000000000000000;    // 0.1 ether
   uint256 public increase_level3 = 1000000000000000;      // 0.001 ether 
   
-  uint public EXPIRATION = 31536000;
+  uint public EXPIRATION = 180;
 }
 
 /**
@@ -1028,7 +1028,6 @@ contract CryptoName is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, Crypto
     uint256 tokenId = uint256(sha256(abi.encodePacked(uri)));
     bool result = implementation_slot.delegatecall(abi.encodeWithSignature("transferDelegateCall(address,address,string)",from,to,uri));
     require(result, "Transfer failed.");
-    super._transferFrom(from, to, tokenId);
   }
   
   
@@ -1052,10 +1051,9 @@ contract CryptoName is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, Crypto
   
   /**
    * @dev recycle the Token.
-   * @param _tokenId The address that will own the minted NFT.
    * @param _uri String representing RFC 3986 URI.
    */
-  function recycleToken(uint256 _tokenId ,string _uri) public{
+  function recycleToken(string _uri) public{
     uint256 tokenId = uint256(sha256(abi.encodePacked(_uri)));
     bool result = implementation_slot.delegatecall(abi.encodeWithSignature("recycleTokenDelegateCall(uint256)",tokenId));
     require(result, "Recycle token failed.");
@@ -1114,19 +1112,29 @@ contract CryptoName is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, Crypto
   }
   
   function withdraw(uint256 amount) public {
-      require(msg.sender == owner);
-      msg.sender.transfer(amount);
-      emit Withdraw(msg.sender, amount);
+    require(msg.sender == owner);
+    msg.sender.transfer(amount);
+    emit Withdraw(msg.sender, amount);
+  }
+  
+  function setBasicInfo (string _uri, string _btc, string _eth, string _ela, string _did, string _pubkey) public {
+      setKeyword(_uri, "btc", _btc);
+      setKeyword(_uri, "eth", _eth);
+      setKeyword(_uri, "ela", _ela);
+      setKeyword(_uri, "did", _did);
+      setKeyword(_uri, "publickey", _pubkey);
   }
   
   function setKeyword (string _uri, string _key, string _value) public {
-      uint256 tokenId = uint256(sha256(abi.encodePacked(_uri)));
-      _setKeyword(tokenId, _key, _value);
+    bool result = implementation_slot.delegatecall(abi.encodeWithSignature("setKeywordDelegateCall(string,string,string)",_uri,_key,_value));
+    require(result, "setKeyword failed.");
   }
   
   function getKeyword (string _uri, string _key) public view returns(string) {
-      uint256 tokenId = uint256(sha256(abi.encodePacked(_uri)));
-      return _getKeyword(tokenId, _key);
+    uint256 tokenId = uint256(sha256(abi.encodePacked(_uri)));
+    bool result = implementation_slot.delegatecall(abi.encodeWithSignature("getKeywordDelegateCall(string,string)",_uri,_key));
+    require(result, "getKeyword failed.");
+    return super._getKeyword(tokenId, _key);
   }
   
 }
