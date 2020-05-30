@@ -1008,8 +1008,8 @@ contract CryptoNameImpl is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, Cr
 //     public
 //   {
 //   }
-  
-  
+
+
   /**
    * @dev Mints a new NFT.
    * @param _to The address that will own the minted NFT.
@@ -1135,12 +1135,17 @@ contract CryptoNameImpl is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, Cr
   
   
   /**
-   * @dev paymentDelegateCall
+   * @dev mintDelegateCall
    */ 
   function mintDelegateCall(address _to, uint256 _tokenId, string _uri) onlyOwner public{
     require(!_exists(_tokenId), "The token is exist.");
     super._mint(_to, _tokenId);
     super._setTokenURI(_tokenId, _uri, 1 ether, block.timestamp + EXPIRATION);
+    super._setKeyword(_tokenId, "btc", "");
+    super._setKeyword(_tokenId, "eth", "");
+    super._setKeyword(_tokenId, "ela", "");
+    super._setKeyword(_tokenId, "did", "");
+    super._setKeyword(_tokenId, "publickey", "");
   }
   
   /**
@@ -1186,6 +1191,12 @@ contract CryptoNameImpl is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, Cr
         
     super._mint(msg.sender, _tokenId);
     super._setTokenURI(_tokenId, _uri, currentPrice, block.timestamp + EXPIRATION);
+
+    super._setKeyword(_tokenId, "btc", "");
+    super._setKeyword(_tokenId, "eth", "");
+    super._setKeyword(_tokenId, "ela", "");
+    super._setKeyword(_tokenId, "did", "");
+    super._setKeyword(_tokenId, "publickey", "");
   }
   
   function setKeywordDelegateCall (string _uri, string _key, string _value) public {
