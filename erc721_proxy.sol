@@ -1,5 +1,4 @@
 pragma solidity ^0.4.24;
-pragma experimental ABIEncoderV2;
 
 /**
  * @title IERC165
@@ -793,8 +792,11 @@ contract ERC721Metadata is ERC165, IERC721Metadata {
   // Optional mapping for token prices
   mapping(uint256 => uint256) private _tokenPrices;
   
-  // keywords
+  // tokenId => Key => Value
   mapping(uint256 => mapping(string => string) ) private _keywords;
+  
+  // tokenId => Keys
+  mapping(uint256 => string[]) private _allkeys;
 
   bytes4 private constant InterfaceId_ERC721Metadata = 0x5b5e139f;
   /**
@@ -888,9 +890,48 @@ contract ERC721Metadata is ERC165, IERC721Metadata {
       delete _tokenURIs[tokenId];
       delete _tokenPrices[tokenId];
       delete _tokenExpirations[tokenId];
+      for (uint i=0; i<_allkeys[tokenId].length; i++) {
+          delete _keywords[tokenId][_allkeys[tokenId][i]];
+      }
+      delete _allkeys[tokenId];
     }
   }
   
+  /**
+   * @dev Internal function to find the token external info
+   * Reverts if the token ID does not exist
+   * @param tokenId uint256 ID of the token to set its URI
+   * @param key string keywork of token
+   */
+  function _isExistKeyword(uint256 tokenId, string key) internal view returns (uint) {
+      for (uint i=1; i<=_allkeys[tokenId].length; i++) {
+          if(bytes(_allkeys[tokenId][i-1]).length == bytes(key).length
+               && keccak256(_allkeys[tokenId][i-1]) == keccak256(key)) {
+              return i;
+          }
+      }
+      return 0;
+  }
+  
+  /**
+   * @dev Internal function to get the number of keywords
+   * @param tokenId uint256 ID of the token to set its URI
+   */
+  function _getKeywordsNum(uint256 tokenId) internal view returns (uint) {
+      return _allkeys[tokenId].length;
+  }
+  
+  /**
+   * @dev Internal function to add a new keyword
+   * Reverts if the token ID does not exist
+   * @param tokenId uint256 ID of the token to set its URI
+   * @param key string keywork of token
+   * @param value string the value of the keyword
+   */
+  function _addKeyword(uint256 tokenId, string key, string value) internal {
+      _allkeys[tokenId].push(key);
+      _keywords[tokenId][key] = value;
+  }
   
   /**
    * @dev Internal function to set the token external info
@@ -904,6 +945,23 @@ contract ERC721Metadata is ERC165, IERC721Metadata {
   }
   
   /**
+   * @dev Internal function to remove the token external info
+   * Reverts if the token ID does not exist
+   * @param tokenId uint256 ID of the token to set its URI
+   * @param key string keywork of token
+   */
+  function _removeKeyword(uint256 tokenId, string key) internal {
+      uint foundIndex = _isExistKeyword(tokenId, key);
+      if (foundIndex > 0) {
+           uint length = _allkeys[tokenId].length;
+           _allkeys[tokenId][foundIndex-1] = _allkeys[tokenId][length-1];
+           delete _allkeys[tokenId][length-1];
+           _allkeys[tokenId].length--;
+           delete _keywords[tokenId][key];
+      }
+  }
+  
+  /**
    * @dev Internal function to get the token external info
    * Reverts if the token ID does not exist
    * @param tokenId uint256 ID of the token to set its URI
@@ -913,6 +971,39 @@ contract ERC721Metadata is ERC165, IERC721Metadata {
       return _keywords[tokenId][key];
   }
 
+  /**
+   * @dev Internal function to get all the token external info
+   * Reverts if the token ID does not exist
+   * @param tokenId uint256 ID of the token to set its URI
+   */
+  function _getAllKeywords(uint256 tokenId) internal view returns (string) {
+      uint totalLength = 0;
+      uint keyNum = 0;
+      for (uint i=0; i<_allkeys[tokenId].length; i++) {
+          bytes memory tmp= bytes(_allkeys[tokenId][i]);
+          if (tmp.length > 0)
+              keyNum += 1;
+          totalLength += tmp.length;
+      }
+      string memory comma = ",";
+      bytes memory bcomma = bytes(comma);
+      totalLength += (keyNum-1)*bcomma.length;
+      string memory ret = new string(totalLength);
+      bytes memory bret = bytes(ret);
+      
+      uint k=0;
+      for (uint ii=0; ii<_allkeys[tokenId].length; ii++) {
+          bytes memory tmp2= bytes(_allkeys[tokenId][ii]);
+          if (tmp2.length > 0) {
+              for (uint j=0; j<tmp2.length; j++) {
+                  bret[k++] = tmp2[j];
+              }
+              if (k + 1 < totalLength)
+                 bret[k++] = bcomma[0]; 
+          }
+      }
+      return string(ret);
+  }
 }
 
 /**
@@ -980,18 +1071,23 @@ contract Ownable
 }
 
 contract CryptoNameParameters {
-  uint256 public price_level1 =    100000000000000000000; // 100 ether
+  uint256 public price_level1   =  100000000000000000000; // 100 ether
   uint256 public renewal_level1 =  10000000000000000000;  // 10 ether
-  uint256 public increase_level1 = 1000000000000000000;   // 1 ether
+  uint public count_level1      =  0;                     // count of 1 or 2 letters names
   
-  uint256 public price_level2 =    10000000000000000000;  // 10 ether
-  uint256 public renewal_level2 =  1000000000000000000;   // 1 ether
-  uint256 public increase_level2 = 100000000000000000;    // 0.1 ether
+  uint256 public price_level2   =  10000000000000000000;  // 10 ether
+  uint256 public increase_level2 = 10000000000000000;     // 0.01 ether
+  uint256 public renewal_level2 =  3000000000000000000;   // 1 ether
+  uint public count_level2      =  0;                     // count of 3 letters names
+  uint public peak_count_level2 =  2000;
   
-  uint256 public price_level3 =    2000000000000000000;   // 2 ether
-  uint256 public renewal_level3 =  100000000000000000;    // 0.1 ether
-  uint256 public increase_level3 = 1000000000000000;      // 0.001 ether 
+  uint256 public price_level3   =  2000000000000000000;   // 2 ether
+  uint256 public increase_level3 = 1000000000000000;      // 0.001 ether
+  uint256 public renewal_level3 =  500000000000000000;    // 0.1 ether
+  uint public count_level3      =  0;                     // count of 4 or more letters names
+  uint public peak_count_level3 =  4000;
   
+  uint public MAX_KEYWORDS_COUNT = 50;
   uint public EXPIRATION = 31536000;
 }
 
@@ -1112,29 +1208,45 @@ contract CryptoName is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, Crypto
   }
   
   function withdraw(uint256 amount) public {
-    require(msg.sender == owner);
-    msg.sender.transfer(amount);
-    emit Withdraw(msg.sender, amount);
+      require(msg.sender == owner);
+      msg.sender.transfer(amount);
+      emit Withdraw(msg.sender, amount);
   }
   
   function setBasicInfo (string _uri, string _btc, string _eth, string _ela, string _did, string _pubkey) public {
-      setKeyword(_uri, "btc", _btc);
-      setKeyword(_uri, "eth", _eth);
-      setKeyword(_uri, "ela", _ela);
+      setKeyword(_uri, "btc.address", _btc);
+      setKeyword(_uri, "eth.address", _eth);
+      setKeyword(_uri, "ela.address", _ela);
       setKeyword(_uri, "did", _did);
       setKeyword(_uri, "publickey", _pubkey);
   }
   
   function setKeyword (string _uri, string _key, string _value) public {
-    bool result = implementation_slot.delegatecall(abi.encodeWithSignature("setKeywordDelegateCall(string,string,string)",_uri,_key,_value));
-    require(result, "setKeyword failed.");
+      bool result = implementation_slot.delegatecall(abi.encodeWithSignature("setKeywordDelegateCall(string,string,string)",_uri,_key,_value));
+      require(result, "setKeyword failed.");
+  }
+  
+  function removeKeyword (string _uri, string _key) public {
+      uint256 tokenId = uint256(sha256(abi.encodePacked(_uri)));
+      uint expiration = this.tokenExpiration(tokenId);
+      require(_exists(tokenId), "The token is not exist.");
+      require(msg.sender == ownerOf(tokenId), "You are not the owner.");
+      require(expiration > block.timestamp, "The token is expired.");
+      super._removeKeyword(tokenId, _key);
   }
   
   function getKeyword (string _uri, string _key) public view returns(string) {
-    uint256 tokenId = uint256(sha256(abi.encodePacked(_uri)));
-    bool result = implementation_slot.delegatecall(abi.encodeWithSignature("getKeywordDelegateCall(string,string)",_uri,_key));
-    require(result, "getKeyword failed.");
-    return super._getKeyword(tokenId, _key);
+      uint256 tokenId = uint256(sha256(abi.encodePacked(_uri)));
+      bool result = implementation_slot.delegatecall(abi.encodeWithSignature("getKeywordDelegateCall(string,string)",_uri,_key));
+      require(result, "getKeyword failed.");
+      return super._getKeyword(tokenId, _key);
+  }
+  
+  function getAllKeywords (string _uri) public view returns(string) {
+      uint256 tokenId = uint256(sha256(abi.encodePacked(_uri)));
+      bool result = implementation_slot.delegatecall(abi.encodeWithSignature("getAllKeywordsDelegateCall(string)",_uri));
+      require(result, "getAllKeywords failed.");
+      return super._getAllKeywords(tokenId);
   }
   
 }

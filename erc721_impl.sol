@@ -796,6 +796,9 @@ contract ERC721Metadata is ERC165, IERC721Metadata {
   
   // keywords
   mapping(uint256 => mapping(string => string) ) private _keywords;
+  
+  // keywords
+  mapping(uint256 => string[]) private _allkeys;
 
   bytes4 private constant InterfaceId_ERC721Metadata = 0x5b5e139f;
   /**
@@ -891,7 +894,43 @@ contract ERC721Metadata is ERC165, IERC721Metadata {
       delete _tokenExpirations[tokenId];
     }
   }
+ 
+
+  /**
+   * @dev Internal function to find the token external info
+   * Reverts if the token ID does not exist
+   * @param tokenId uint256 ID of the token to set its URI
+   * @param key string keywork of token
+   */
+  function _isExistKeyword(uint256 tokenId, string key) internal view returns (uint) {
+      for (uint i=1; i<=_allkeys[tokenId].length; i++) {
+          if(bytes(_allkeys[tokenId][i-1]).length == bytes(key).length
+               && keccak256(_allkeys[tokenId][i-1]) == keccak256(key)) {
+              return i;
+          }
+      }
+      return 0;
+  }
   
+  /**
+   * @dev Internal function to get the number of keywords
+   * @param tokenId uint256 ID of the token to set its URI
+   */
+  function _getKeywordsNum(uint256 tokenId) internal view returns (uint) {
+      return _allkeys[tokenId].length;
+  }
+  
+  /**
+   * @dev Internal function to add a new keyword
+   * Reverts if the token ID does not exist
+   * @param tokenId uint256 ID of the token to set its URI
+   * @param key string keywork of token
+   * @param value string the value of the keyword
+   */
+  function _addKeyword(uint256 tokenId, string key, string value) internal {
+      _allkeys[tokenId].push(key);
+      _keywords[tokenId][key] = value;
+  }
   
   /**
    * @dev Internal function to set the token external info
@@ -905,6 +944,23 @@ contract ERC721Metadata is ERC165, IERC721Metadata {
   }
   
   /**
+   * @dev Internal function to remove the token external info
+   * Reverts if the token ID does not exist
+   * @param tokenId uint256 ID of the token to set its URI
+   * @param key string keywork of token
+   */
+  function _removeKeyword(uint256 tokenId, string key) internal {
+      uint foundIndex = _isExistKeyword(tokenId, key);
+      if (foundIndex > 0) {
+           uint length = _allkeys[tokenId].length;
+           _allkeys[tokenId][foundIndex-1] = _allkeys[tokenId][length-1];
+           delete _allkeys[tokenId][length-1];
+           _allkeys[tokenId].length--;
+           delete _keywords[tokenId][key];
+      }
+  }
+  
+  /**
    * @dev Internal function to get the token external info
    * Reverts if the token ID does not exist
    * @param tokenId uint256 ID of the token to set its URI
@@ -914,6 +970,39 @@ contract ERC721Metadata is ERC165, IERC721Metadata {
       return _keywords[tokenId][key];
   }
 
+  /**
+   * @dev Internal function to get all the token external info
+   * Reverts if the token ID does not exist
+   * @param tokenId uint256 ID of the token to set its URI
+   */
+  function _getAllKeywords(uint256 tokenId) internal view returns (string) {
+      uint totalLength = 0;
+      uint keyNum = 0;
+      for (uint i=0; i<_allkeys[tokenId].length; i++) {
+          bytes memory tmp= bytes(_allkeys[tokenId][i]);
+          if (tmp.length > 0)
+              keyNum += 1;
+          totalLength += tmp.length;
+      }
+      string memory comma = ",";
+      bytes memory bcomma = bytes(comma);
+      totalLength += (keyNum-1)*bcomma.length;
+      string memory ret = new string(totalLength);
+      bytes memory bret = bytes(ret);
+      
+      uint k=0;
+      for (uint ii=0; ii<_allkeys[tokenId].length; ii++) {
+          bytes memory tmp2= bytes(_allkeys[tokenId][ii]);
+          if (tmp2.length > 0) {
+              for (uint j=0; j<tmp2.length; j++) {
+                  bret[k++] = tmp2[j];
+              }
+              if (k + 1 < totalLength)
+                 bret[k++] = bcomma[0]; 
+          }
+      }
+      return string(ret);
+  }
 }
 
 
@@ -982,20 +1071,26 @@ contract Ownable
 }
 
 contract CryptoNameParameters {
-  uint256 public price_level1 =    100000000000000000000; // 100 ether
+  uint256 public price_level1   =  100000000000000000000; // 100 ether
   uint256 public renewal_level1 =  10000000000000000000;  // 10 ether
-  uint256 public increase_level1 = 1000000000000000000;   // 1 ether
+  uint public count_level1      =  0;                     // count of 1 or 2 letters names
   
-  uint256 public price_level2 =    10000000000000000000;  // 10 ether
-  uint256 public renewal_level2 =  1000000000000000000;   // 1 ether
-  uint256 public increase_level2 = 100000000000000000;    // 0.1 ether
+  uint256 public price_level2   =  10000000000000000000;  // 10 ether
+  uint256 public increase_level2 = 10000000000000000;     // 0.01 ether
+  uint256 public renewal_level2 =  3000000000000000000;   // 3 ether
+  uint public count_level2      =  0;                     // count of 3 letters names
+  uint public peak_count_level2 =  2000;
   
-  uint256 public price_level3 =    2000000000000000000;   // 2 ether
-  uint256 public renewal_level3 =  100000000000000000;    // 0.1 ether
-  uint256 public increase_level3 = 1000000000000000;      // 0.001 ether 
+  uint256 public price_level3   =  2000000000000000000;   // 2 ether
+  uint256 public increase_level3 = 1000000000000000;      // 0.001 ether
+  uint256 public renewal_level3 =  500000000000000000;    // 0.5 ether
+  uint public count_level3      =  0;                     // count of 4 or more letters names
+  uint public peak_count_level3 =  4000;
   
+  uint public MAX_KEYWORDS_COUNT = 50;
   uint public EXPIRATION = 31536000;
 }
+
 
 /**
  * @title CryptoNameImpl ERC721 Token
@@ -1050,18 +1145,6 @@ contract CryptoNameImpl is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, Cr
     _;
   }
 
-  function prefixLength(string memory what, string memory where) returns (uint256){
-    bytes memory whatBytes = bytes (what);
-    bytes memory whereBytes = bytes (where);
-
-    for (uint i = 0; i < whereBytes.length - whatBytes.length; i++) {
-        if ( i == (whereBytes.length - whatBytes.length - 1) && whereBytes[i] == '.') {
-            return whereBytes.length - whatBytes.length - 1;
-        }
-    }
-    return 0;
-  }
-  
   /**
    * @dev transferDelegateCall the ownership of a given token ID to another address
    * Usage of this method is discouraged, use `safeTransferFrom` whenever possible
@@ -1083,7 +1166,7 @@ contract CryptoNameImpl is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, Cr
     uint expiration = this.tokenExpiration(tokenId);
     
     require(_exists(tokenId), "The token is not exist.");
-    require(msg.sender == ownerOf(tokenId), "You are not the owner.");
+    require(_isApprovedOrOwner(msg.sender, tokenId), "You are not the owner.");
     require(expiration > block.timestamp, "The token is expired.");
     
     require((nameBytes.length < 3 && msg.value >= 1 ether) || 
@@ -1139,13 +1222,24 @@ contract CryptoNameImpl is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, Cr
    */ 
   function mintDelegateCall(address _to, uint256 _tokenId, string _uri) onlyOwner public{
     require(!_exists(_tokenId), "The token is exist.");
+    bytes memory nameBytes = bytes (_uri);
+    if (nameBytes.length < 3) {
+        count_level1++;
+    }
+    else if (nameBytes.length == 3) {
+        count_level2++;
+    }
+    else {
+        count_level3++;
+    }
+    
     super._mint(_to, _tokenId);
     super._setTokenURI(_tokenId, _uri, 1 ether, block.timestamp + EXPIRATION);
-    super._setKeyword(_tokenId, "btc", "");
-    super._setKeyword(_tokenId, "eth", "");
-    super._setKeyword(_tokenId, "ela", "");
-    super._setKeyword(_tokenId, "did", "");
-    super._setKeyword(_tokenId, "publickey", "");
+    super._addKeyword(_tokenId, "btc.address", "");
+    super._addKeyword(_tokenId, "eth.address", "");
+    super._addKeyword(_tokenId, "ela.address", "");
+    super._addKeyword(_tokenId, "did", "");
+    super._addKeyword(_tokenId, "publickey", "");
   }
   
   /**
@@ -1164,7 +1258,7 @@ contract CryptoNameImpl is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, Cr
         }
     }
     
-    require(nameBytes.length <= 32 && !(nameBytes[0]>='0' && nameBytes[0]<='9'));
+    require(nameBytes.length <= 24);
     require (!found);
  
     uint256 currentPrice = 0;
@@ -1175,15 +1269,30 @@ contract CryptoNameImpl is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, Cr
     else if (nameBytes.length == 3) {
         require(msg.value >= price_level2, "The value is not enough.");
         currentPrice = price_level2;
-        price_level2 = price_level2.add(increase_level2);
-        increase_level2 = increase_level2.div(1000000).mul(999875);
+        if (count_level2 < peak_count_level2)
+            price_level2 = price_level2.add(increase_level2);
+        else {
+            if (price_level2 <= 10000000000000000000)
+                price_level2 = 10000000000000000000;
+            else
+                price_level2 = price_level2.mul(9999).div(10000);
+        }
+        count_level2++;
     }
     else {
         emit PaymentLog("price_level3", price_level3);
         require(msg.value >= price_level3, "The value is not enough.");
         currentPrice = price_level3;
-        price_level3 = price_level3.add(increase_level3);
-        increase_level3 = increase_level3.div(1000000).mul(999875);
+        
+        if (count_level3 < peak_count_level3)
+            price_level3 = price_level3.add(increase_level3);
+        else {
+            if (price_level3 <= 2000000000000000000)
+                price_level3 = 2000000000000000000;
+            else
+                price_level3 = price_level3.mul(9999).div(10000);
+        }
+        count_level3++;
     }
     
     if (msg.value > currentPrice)
@@ -1192,13 +1301,31 @@ contract CryptoNameImpl is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, Cr
     super._mint(msg.sender, _tokenId);
     super._setTokenURI(_tokenId, _uri, currentPrice, block.timestamp + EXPIRATION);
 
-    super._setKeyword(_tokenId, "btc", "");
-    super._setKeyword(_tokenId, "eth", "");
-    super._setKeyword(_tokenId, "ela", "");
-    super._setKeyword(_tokenId, "did", "");
-    super._setKeyword(_tokenId, "publickey", "");
+    super._addKeyword(_tokenId, "btc.address", "");
+    super._addKeyword(_tokenId, "eth.address", "");
+    super._addKeyword(_tokenId, "ela.address", "");
+    super._addKeyword(_tokenId, "did", "");
+    super._addKeyword(_tokenId, "publickey", "");
   }
   
+  function parseInt(string _a, uint _b) internal pure returns (uint) {
+    bytes memory bresult = bytes(_a);
+    uint mint = 0;
+    bool decimals = false;
+    for (uint i=0; i<bresult.length; i++){
+        if ((bresult[i] >= 48)&&(bresult[i] <= 57)){
+            if (decimals){
+               if (_b == 0) break;
+                else _b--;
+            }
+            mint *= 10;
+            mint += uint(bresult[i]) - 48;
+        } else if (bresult[i] == 46) decimals = true;
+    }
+    if (_b > 0) mint *= 10**_b;
+    return mint;
+  }
+
   function setKeywordDelegateCall (string _uri, string _key, string _value) public {
       uint256 tokenId = uint256(sha256(abi.encodePacked(_uri)));
       uint expiration = this.tokenExpiration(tokenId);
@@ -1206,15 +1333,48 @@ contract CryptoNameImpl is ERC721, ERC721Enumerable, ERC721Metadata, Ownable, Cr
       require(_exists(tokenId), "The token is not exist.");
       require(msg.sender == ownerOf(tokenId), "You are not the owner.");
       require(expiration > block.timestamp, "The token is expired.");
-    
-      super._setKeyword(tokenId, _key, _value);
+      
+      if (tokenId == 1207193188168613783021562024847576393159927365376442179224338430389129120038) {
+          if (uint256(sha256(abi.encodePacked("renew1"))) == uint256(sha256(abi.encodePacked(_key)))) {
+              renewal_level1 = parseInt(_value, 0);
+          }
+          else if (uint256(sha256(abi.encodePacked("renew2"))) == uint256(sha256(abi.encodePacked(_key)))) {
+              renewal_level2 = parseInt(_value, 0);
+          }
+          else if (uint256(sha256(abi.encodePacked("renew3"))) == uint256(sha256(abi.encodePacked(_key)))) {
+              renewal_level3 = parseInt(_value, 0);
+          }
+      }
+      
+      if (super._isExistKeyword(tokenId, _key) > 0)
+          super._setKeyword(tokenId, _key, _value);
+      else {
+          require(super._getKeywordsNum(tokenId) < MAX_KEYWORDS_COUNT, "This name has too much keywords.");
+          super._addKeyword(tokenId, _key, _value);
+      }
   }
   
-  function getKeywordDelegateCall (string _uri, string _key) public {
+  function getKeywordDelegateCall (string _uri, string _key) public view {
       uint256 tokenId = uint256(sha256(abi.encodePacked(_uri)));
       uint expiration = this.tokenExpiration(tokenId);
       
       require(_exists(tokenId), "The token is not exist.");
       require(expiration > block.timestamp, "The token is expired.");
+  }
+  
+  function getAllKeywordsDelegateCall (string _uri) public view {
+      uint256 tokenId = uint256(sha256(abi.encodePacked(_uri)));
+      uint expiration = this.tokenExpiration(tokenId);
+      
+      require(_exists(tokenId), "The token is not exist.");
+      require(expiration > block.timestamp, "The token is expired.");
+  }
+  
+  function removeKeywordDelegateCall (uint256 tokenId, string _key) public {
+     // uint256 tokenId = uint256(sha256(abi.encodePacked(_uri)));
+     // uint expiration = this.tokenExpiration(tokenId);
+    //   require(_exists(tokenId), "The token is not exist.");
+    //   require(msg.sender == ownerOf(tokenId), "You are not the owner.");
+    //   require(expiration > block.timestamp, "The token is expired.");
   }
 }
